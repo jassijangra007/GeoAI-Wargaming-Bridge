@@ -2,7 +2,14 @@
 __pycache__/
 *.py[codz]
 *$py.class
-
+*.tif
+*.jp2
+*.shp
+*.shx
+*.dbf
+*.prj
+*.gdb/
+C:/Wargaming_Outputs/
 # C extensions
 *.so
 
