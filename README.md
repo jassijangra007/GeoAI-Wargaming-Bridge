@@ -130,7 +130,7 @@ The engine operates safely within a scratch workspace before committing final ge
 **Execution Steps:**
 1.  **Clone the Repository:**
     ```bash
-    git clone [https://github.com/YourUsername/GeoAI-Wargaming-Bridge.git](https://github.com/YourUsername/GeoAI-Wargaming-Bridge.git)
+    git clone [https://github.com/jassijangra007/GeoAI-Wargaming-Bridge.git](https://github.com/jassijangra007/GeoAI-Wargaming-Bridge.git)
     cd GeoAI-Wargaming-Bridge
     ```
 2.  **Prepare the Workspace:**
