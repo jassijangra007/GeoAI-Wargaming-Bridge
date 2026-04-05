@@ -921,6 +921,14 @@
             style="margin-top:20px;padding:8px 20px;background:var(--c);border:none;font-weight:bold;cursor:pointer;">CLOSE</button>
     </div>
 
+    <!-- NEW LOADING MENU -->
+    <div id="route-loader" style="display:none; position:fixed; top:50%; left:50%; transform:translate(-50%, -50%); z-index: 1000; background: var(--panel); padding: 25px 30px; border: 1px solid var(--border); border-top: 4px solid var(--c); border-radius: 4px; box-shadow: 0 20px 60px rgba(0,0,0,0.5); backdrop-filter: blur(10px); width: 340px; text-align: center;">
+        <div style="font-family:'Rajdhani',sans-serif; font-size:16px; font-weight:700; color:var(--text); letter-spacing:3px; margin-bottom: 15px;" id="loader-text">GENERATING ROUTE...</div>
+        <div style="width:100%; height:6px; background:rgba(128,128,128,0.2); border-radius:3px; overflow:hidden;">
+            <div id="loader-bar" style="width:0%; height:100%; background:var(--c); transition:width 0.1s linear; box-shadow: 0 0 10px var(--c);"></div>
+        </div>
+    </div>
+
     <script>
         const { DeckGL, GeoJsonLayer, TextLayer, ColumnLayer, ScatterplotLayer, PathLayer } = deck;
 
@@ -1051,7 +1059,7 @@
             container: 'map-container',
             mapStyle: 'https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json',
             viewState: currentViewState,
-            controller: true,
+            controller: { touchRotate: true, dragRotate: true, scrollZoom: true, dragPan: true },
             onViewStateChange: ({ viewState }) => {
                 currentViewState = viewState;
                 deckgl.setProps({ viewState: currentViewState });
@@ -1422,7 +1430,31 @@
             log(`<br>[CALC] Acquiring route vector: <span style="color:${hex}">${rnk}</span>`, 'lc');
 
             flyTo(coords[0][0], coords[0][1], 14, 60, 0, 1500);
+
+            // FILL THE GAP: Show loading menu before route trace begins
+            const loader = document.getElementById('route-loader');
+            const loaderBar = document.getElementById('loader-bar');
+            const loaderText = document.getElementById('loader-text');
+            loader.style.display = 'block';
+            loaderText.style.color = hex;
+            loaderText.textContent = `GENERATING CORRIDOR ${rnk}`;
+            loaderBar.style.width = '0%';
+            loaderBar.style.backgroundColor = hex;
+            loaderBar.style.boxShadow = `0 0 10px ${hex}`;
+
+            // Animate the bar during the 1.5 second flyTo gap
+            let elapsed = 0;
+            let gapAnim = setInterval(() => {
+                elapsed += 50;
+                if (!skipAnimation) {
+                    loaderBar.style.width = Math.min(100, (elapsed / 1500) * 100) + '%';
+                }
+            }, 50);
+
             await sleep(1500);
+
+            clearInterval(gapAnim);
+            loader.style.display = 'none'; // HIDE LOADER ONCE ROUTE TRACING STARTS
 
             log(`— Tracing off-road cost distance path...`, 'ls');
             hud(`ROUTE ${rnk}`, `CALCULATING SPARSITY`, hex, 1800);
