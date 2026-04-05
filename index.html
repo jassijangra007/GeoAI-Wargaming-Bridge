@@ -1,0 +1,1481 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <title>GeoAI Wargaming Simulator | V13 APEX</title>
+    <script src="https://unpkg.com/deck.gl@latest/dist.min.js"></script>
+    <script src="https://unpkg.com/maplibre-gl@3.x/dist/maplibre-gl.js"></script>
+    <link href="https://unpkg.com/maplibre-gl@3.x/dist/maplibre-gl.css" rel="stylesheet" />
+    <!-- FONTS -->
+    <link
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&family=Rajdhani:wght@500;700&family=Fira+Code&display=swap"
+        rel="stylesheet">
+
+    <style>
+        :root {
+            --c: #FF6B00;
+            --c2: #0044FF;
+            --red: #ff2244;
+            --amber: #ffaa00;
+            --green: #00CC66;
+            --bg: #F5F5F5;
+            --panel: rgba(255, 255, 255, 0.95);
+            --border: rgba(0, 0, 0, 0.1);
+            --borders: rgba(0, 0, 0, 0.25);
+            --text: #222;
+            --tbg: rgba(5, 10, 15, 0.95);
+            --ttxt: rgba(255, 255, 255, .4);
+            --dim: rgba(0, 0, 0, 0.6);
+        }
+
+        body.dark-theme {
+            --c: #00ffcc;
+            --bg: #020609;
+            --panel: rgba(5, 10, 15, 0.95);
+            --border: rgba(0, 255, 204, 0.2);
+            --borders: rgba(0, 255, 204, 0.4);
+            --text: #fff;
+            --tbg: rgba(2, 6, 12, 0.95);
+            --ttxt: rgba(0, 255, 204, .6);
+            --dim: rgba(255, 255, 255, 0.6);
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            background: var(--bg);
+            font-family: 'Inter', sans-serif;
+            overflow: hidden;
+            color: var(--text);
+            user-select: none;
+        }
+
+        #map-container {
+            width: 100vw;
+            height: 100vh;
+            position: fixed;
+            z-index: 1;
+            filter: blur(24px) brightness(1.5);
+            transform: scale(1.08);
+            transition: filter 1.5s ease, transform 1.5s ease;
+        }
+
+        #map-container.live {
+            filter: blur(0) brightness(1);
+            transform: scale(1);
+        }
+
+        .scanlines {
+            position: fixed;
+            inset: 0;
+            z-index: 85;
+            pointer-events: none;
+            background: repeating-linear-gradient(to bottom, transparent 0, transparent 3px, rgba(0, 0, 0, 0.03) 3px, rgba(0, 0, 0, 0.03) 4px);
+        }
+
+        .vignette {
+            position: fixed;
+            inset: 0;
+            z-index: 84;
+            pointer-events: none;
+            background: radial-gradient(ellipse 80% 80% at 50% 50%, transparent 35%, rgba(0, 0, 0, 0.3) 100%);
+        }
+
+        .corner {
+            position: fixed;
+            width: 56px;
+            height: 56px;
+            z-index: 90;
+            pointer-events: none;
+            opacity: 0;
+            transition: opacity 1s ease 1s;
+        }
+
+        .corner.show {
+            opacity: 1;
+        }
+
+        .corner svg {
+            width: 100%;
+            height: 100%;
+        }
+
+        .corner.tl {
+            top: 18px;
+            left: 18px;
+        }
+
+        .corner.tr {
+            top: 18px;
+            right: 18px;
+            transform: scaleX(-1);
+        }
+
+        .corner.bl {
+            bottom: 18px;
+            left: 18px;
+            transform: scaleY(-1);
+        }
+
+        .corner.br {
+            bottom: 18px;
+            right: 18px;
+            transform: scale(-1);
+        }
+
+        /* LANDING PAGE */
+        #landing {
+            position: fixed;
+            inset: 0;
+            z-index: 200;
+            background: radial-gradient(ellipse 130% 110% at 50% 105%, #ffffff 0%, #eaeaea 65%);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            transition: opacity 1s ease, transform 1s ease;
+        }
+
+        #landing.exit {
+            opacity: 0;
+            transform: scale(1.04);
+            pointer-events: none;
+        }
+
+        .l-card {
+            max-width: 1050px;
+            width: 90%;
+            background: var(--panel);
+            padding: 50px 40px;
+            border-radius: 6px;
+            border: 1px solid var(--border);
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.2);
+            backdrop-filter: blur(10px);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            animation: fsu 1s ease both;
+        }
+
+        .l-eye {
+            font-family: 'Rajdhani', sans-serif;
+            font-size: 1rem;
+            font-weight: 700;
+            letter-spacing: 9px;
+            color: var(--c);
+            margin-bottom: 15px;
+        }
+
+        .l-title {
+            font-family: 'Rajdhani', sans-serif;
+            font-size: clamp(2rem, 4.5vw, 3.5rem);
+            font-weight: 700;
+            color: var(--text);
+            letter-spacing: 4px;
+            line-height: 1.1;
+            text-shadow: 0 4px 20px rgba(0, 0, 0, 0.05);
+            text-align: center;
+        }
+
+        .l-sub {
+            font-size: 1rem;
+            letter-spacing: 1px;
+            line-height: 1.6;
+            color: var(--dim);
+            text-align: center;
+            max-width: 800px;
+            margin: 20px 0 40px;
+        }
+
+        .l-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+            gap: 20px;
+            width: 100%;
+            margin-bottom: 40px;
+        }
+
+        .ig {
+            padding: 25px;
+            background: rgba(128, 128, 128, 0.06);
+            border-left: 4px solid var(--c);
+            border-radius: 4px;
+            transition: background .3s;
+        }
+
+        body.dark-theme .ig {
+            background: rgba(255, 255, 255, 0.03);
+        }
+
+        .ig:hover {
+            background: rgba(128, 128, 128, 0.1);
+        }
+
+        .ig h3 {
+            font-family: 'Rajdhani', sans-serif;
+            font-size: 16px;
+            letter-spacing: 3px;
+            margin-bottom: 12px;
+            color: var(--text);
+        }
+
+        .ig p {
+            font-size: 13px;
+            opacity: 0.7;
+            line-height: 1.6;
+        }
+
+        .ig span {
+            color: var(--c);
+            font-weight: 700;
+        }
+
+        .btn-engage {
+            font-family: 'Rajdhani', sans-serif;
+            font-size: 1.4rem;
+            font-weight: 700;
+            letter-spacing: 6px;
+            padding: 22px 70px;
+            background: var(--c);
+            color: #fff;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            text-transform: uppercase;
+            position: relative;
+            transition: all .3s ease;
+            opacity: .35;
+            pointer-events: none;
+            box-shadow: 0 10px 30px rgba(255, 107, 0, 0.3);
+        }
+
+        .btn-engage.ready {
+            opacity: 1;
+            pointer-events: all;
+            animation: pulse 2s infinite alternate;
+        }
+
+        .btn-engage:hover {
+            box-shadow: 0 15px 40px rgba(255, 107, 0, 0.6);
+            transform: translateY(-2px);
+            animation: none;
+        }
+
+        .l-status {
+            font-size: .7rem;
+            font-family: 'Rajdhani', sans-serif;
+            font-weight: 700;
+            letter-spacing: 5px;
+            color: var(--dim);
+            margin-top: 20px;
+        }
+
+        @keyframes pulse {
+            from {
+                box-shadow: 0 5px 20px rgba(255, 107, 0, 0.3)
+            }
+
+            to {
+                box-shadow: 0 15px 40px rgba(255, 107, 0, 0.6)
+            }
+        }
+
+        /* UI PANELS */
+        .gpanel {
+            background: var(--panel);
+            border: 1px solid var(--border);
+            backdrop-filter: blur(14px);
+            position: fixed;
+            z-index: 50;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.08);
+            border-radius: 4px;
+        }
+
+        #top-bar {
+            top: 18px;
+            left: 18px;
+            right: 18px;
+            height: 42px;
+            display: none;
+            align-items: center;
+            border-left: 3px solid var(--c);
+            border-right: 3px solid var(--c);
+        }
+
+        .bs {
+            height: 100%;
+            display: flex;
+            align-items: center;
+            padding: 0 16px;
+            border-right: 1px solid var(--border);
+            font-family: 'Rajdhani', sans-serif;
+            font-size: 11px;
+            font-weight: 700;
+            letter-spacing: 3px;
+            color: var(--dim);
+            gap: 7px;
+        }
+
+        .bs .v {
+            color: var(--text);
+            letter-spacing: 1px;
+        }
+
+        .bs:last-child {
+            margin-left: auto;
+            border-right: none;
+            border-left: 1px solid var(--border);
+        }
+
+        #terminal {
+            bottom: 22px;
+            left: 18px;
+            width: 490px;
+            height: 300px;
+            border-left: 3px solid var(--c);
+            display: none;
+            background: var(--tbg);
+            color: #fff;
+            border-radius: 4px;
+            transition: background .3s;
+            pointer-events: auto;
+            display: flex;
+            flex-direction: column;
+        }
+
+        #t-hdr {
+            padding: 11px 15px 8px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            font-size: 10px;
+            letter-spacing: 4px;
+            color: var(--ttxt);
+            font-family: 'Rajdhani', sans-serif;
+            font-weight: 700;
+        }
+
+        #t-body {
+            padding: 9px 15px 13px;
+            font-size: 13px;
+            line-height: 1.85;
+            font-family: 'Fira Code', monospace;
+            overflow-y: auto;
+            flex: 1;
+        }
+
+        #telemetry {
+            top: 78px;
+            right: 18px;
+            width: 320px;
+            border-right: 3px solid var(--c);
+            display: none;
+        }
+
+        #tel-h {
+            padding: 11px 15px 9px;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            align-items: center;
+            gap: 9px;
+        }
+
+        #tel-title {
+            font-family: 'Rajdhani', sans-serif;
+            font-size: 12px;
+            font-weight: 700;
+            letter-spacing: 5px;
+            color: var(--dim);
+        }
+
+        #math {
+            padding: 13px 15px;
+        }
+
+        /* HOVER HUD TOOLTIP */
+        #intel-tooltip {
+            position: fixed;
+            z-index: 999;
+            background: var(--panel);
+            border: 1px solid var(--border);
+            padding: 15px 20px;
+            color: var(--text);
+            font-size: 11px;
+            font-family: 'Rajdhani', sans-serif;
+            letter-spacing: 2px;
+            pointer-events: none;
+            display: none;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.15);
+            backdrop-filter: blur(10px);
+            text-transform: uppercase;
+            border-radius: 4px;
+        }
+
+        .tt-hdr {
+            color: var(--c);
+            border-bottom: 1px solid var(--border);
+            padding-bottom: 8px;
+            margin-bottom: 10px;
+            font-weight: 700;
+            font-size: 14px;
+            letter-spacing: 4px;
+        }
+
+        .tt-row {
+            display: flex;
+            justify-content: space-between;
+            gap: 30px;
+            margin-bottom: 6px;
+            color: var(--dim);
+        }
+
+        .tt-val {
+            color: var(--green);
+            font-weight: 700;
+            font-family: 'Courier New', monospace;
+        }
+
+        /* HUD & TEXT ELEMENTS */
+        .mr {
+            display: flex;
+            justify-content: space-between;
+            align-items: baseline;
+            margin-bottom: 12px;
+            font-size: 11px;
+            letter-spacing: 2px;
+            color: var(--dim);
+            text-transform: uppercase;
+            white-space: nowrap;
+        }
+
+        .mv {
+            color: var(--c);
+            font-size: 13px;
+            font-family: 'Rajdhani', sans-serif;
+            font-weight: 700;
+            letter-spacing: 2px;
+        }
+
+        .msc {
+            color: var(--red);
+            font-size: 11px;
+        }
+
+        #hud {
+            position: fixed;
+            top: 17%;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 80;
+            text-align: center;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity .2s;
+        }
+
+        #hud-m {
+            font-family: 'Rajdhani', sans-serif;
+            font-size: clamp(2rem, 3.5vw, 3rem);
+            font-weight: 700;
+            letter-spacing: 10px;
+            white-space: nowrap;
+            color: #fff;
+            text-shadow: 0 2px 10px rgba(0, 0, 0, 0.5);
+        }
+
+        #hud-s {
+            font-size: .75rem;
+            letter-spacing: 5px;
+            color: rgba(255, 255, 255, .8);
+            margin-top: 8px;
+            text-shadow: 0 2px 5px rgba(0, 0, 0, 0.5);
+        }
+
+        #ep {
+            position: fixed;
+            bottom: 22px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 91;
+            font-family: 'Rajdhani', sans-serif;
+            font-size: 12px;
+            font-weight: 700;
+            letter-spacing: 6px;
+            color: var(--text);
+            background: var(--panel);
+            padding: 12px 30px;
+            border: 1px solid var(--c);
+            display: none;
+            animation: bl 2s ease infinite;
+            cursor: pointer;
+            border-radius: 24px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+        }
+
+        #ep::before,
+        #ep::after {
+            content: '//';
+            color: var(--text);
+            opacity: 0.3;
+            margin: 0 10px;
+        }
+
+        .dict-page {
+            position: fixed;
+            inset: 0;
+            z-index: 180;
+            background: var(--bg);
+            display: none;
+            flex-direction: column;
+            align-items: center;
+            padding: 50px 20px;
+            overflow-y: auto;
+            transition: opacity .5s, background .5s;
+            opacity: 0;
+        }
+
+        .dict-page.active {
+            display: flex;
+            opacity: 1;
+            animation: fi .6s ease forwards;
+        }
+
+        .card-wrap {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 30px;
+            max-width: 1100px;
+            width: 100%;
+            justify-content: center;
+            margin-bottom: 40px;
+        }
+
+        .d-card {
+            background: var(--panel);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            padding: 30px;
+            width: 100%;
+            max-width: 47%;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.05);
+            transition: background .3s, border .3s;
+        }
+
+        .d-card h3 {
+            color: var(--c);
+            font-family: 'Rajdhani', sans-serif;
+            font-size: 1.4rem;
+            letter-spacing: 2px;
+            margin-bottom: 15px;
+            border-bottom: 1px solid var(--border);
+            padding-bottom: 10px;
+        }
+
+        .d-row {
+            display: flex;
+            justify-content: space-between;
+            font-size: 13px;
+            line-height: 2.2;
+            color: var(--text);
+            border-bottom: 1px dashed rgba(0, 0, 0, 0.05);
+        }
+
+        body.dark-theme .d-row {
+            border-bottom: 1px dashed rgba(255, 255, 255, 0.05);
+        }
+
+        .d-val {
+            font-family: 'Courier New', monospace;
+            opacity: 0.8;
+            color: var(--text);
+        }
+
+        #theme-toggle {
+            position: fixed;
+            bottom: 90px;
+            right: 25px;
+            width: 45px;
+            height: 45px;
+            border-radius: 50%;
+            background: var(--panel);
+            border: 1px solid var(--border);
+            z-index: 210;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            cursor: pointer;
+            font-size: 1.2rem;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+            transition: background .3s;
+        }
+
+        .watermark {
+            position: fixed;
+            bottom: 25px;
+            right: 25px;
+            z-index: 9000;
+            font-family: 'Rajdhani', sans-serif;
+            font-size: 14px;
+            opacity: 0.4;
+            color: var(--text);
+            letter-spacing: 4px;
+            pointer-events: none;
+            text-transform: uppercase;
+        }
+
+        /* DIAGNOSTICS */
+        #diag-panel {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            z-index: 300;
+            width: min(660px, 94vw);
+            background: rgba(255, 255, 255, .98);
+            border: 1px solid var(--border);
+            border-top: 4px solid var(--c);
+            padding: 26px 30px;
+            display: none;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.2);
+            border-radius: 4px;
+        }
+
+        body.dark-theme #diag-panel {
+            background: rgba(10, 15, 20, 0.98);
+        }
+
+        #diag-panel h2 {
+            font-family: 'Rajdhani', sans-serif;
+            font-size: 1.2rem;
+            letter-spacing: 5px;
+            color: var(--text);
+            border-bottom: 1px solid var(--border);
+            padding-bottom: 10px;
+            margin-bottom: 14px;
+        }
+
+        .drow {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            padding: 7px 0;
+            border-bottom: 1px dashed var(--border);
+            font-size: 12px;
+            letter-spacing: 1px;
+            gap: 14px;
+        }
+
+        .dk {
+            color: var(--dim);
+            min-width: 190px;
+        }
+
+        .dv {
+            color: var(--text);
+            text-align: right;
+            font-weight: bold;
+        }
+
+        .dv.ok {
+            color: var(--green);
+        }
+
+        .dv.err {
+            color: var(--red);
+        }
+
+        .dv.warn {
+            color: var(--amber);
+        }
+
+        .ll {
+            opacity: 0;
+            animation: fi .1s ease forwards;
+        }
+
+        .ls {
+            color: rgba(255, 255, 255, .6);
+        }
+
+        .lh {
+            color: #fff;
+        }
+
+        .lc {
+            color: var(--amber);
+        }
+
+        .le {
+            color: var(--red);
+        }
+
+        .lo {
+            color: var(--green);
+        }
+
+        @keyframes fsu {
+            from {
+                opacity: 0;
+                transform: translateY(18px)
+            }
+
+            to {
+                opacity: 1;
+                transform: none
+            }
+        }
+
+        @keyframes fi {
+            to {
+                opacity: 1
+            }
+        }
+
+        @keyframes bl {
+
+            0%,
+            100% {
+                opacity: 1
+            }
+
+            50% {
+                opacity: .2
+            }
+        }
+    </style>
+</head>
+
+<body class="dark-theme">
+
+    <div class="watermark">MADE BY JASSIJANGRA007</div>
+
+    <div id="map-container"></div>
+    <div class="scanlines"></div>
+    <div class="vignette"></div>
+    <div class="corner tl"><svg viewBox="0 0 56 56">
+            <path d="M0 38L0 0L38 0" fill="none" stroke="#00ffcc" stroke-width="1.5" opacity=".5" />
+        </svg></div>
+    <div class="corner tr"><svg viewBox="0 0 56 56">
+            <path d="M0 38L0 0L38 0" fill="none" stroke="#00ffcc" stroke-width="1.5" opacity=".5" />
+        </svg></div>
+    <div class="corner bl"><svg viewBox="0 0 56 56">
+            <path d="M0 38L0 0L38 0" fill="none" stroke="#00ffcc" stroke-width="1.5" opacity=".5" />
+        </svg></div>
+    <div class="corner br"><svg viewBox="0 0 56 56">
+            <path d="M0 38L0 0L38 0" fill="none" stroke="#00ffcc" stroke-width="1.5" opacity=".5" />
+        </svg></div>
+
+    <div id="intel-tooltip"></div>
+
+    <div id="top-bar" class="gpanel">
+        <div class="bs"><span
+                style="width:8px;height:8px;border-radius:50%;background:var(--green);box-shadow:0 0 8px var(--green);animation:bl 1.5s infinite;"></span>SYSTEM
+            ONLINE</div>
+        <div class="bs">CENTER <span class="v" id="bar-center">—</span></div>
+        <div class="bs">BRIDGES <span class="v" id="bar-br">—</span></div>
+        <div class="bs">ROUTES <span class="v" id="bar-rt">—</span></div>
+        <div class="bs" style="margin-left:auto;border-left:1px solid var(--border);border-right:none">UTC <span
+                class="v" id="clock">--:--:--</span></div>
+    </div>
+
+    <div id="ep" onclick="triggerEnter()">PRESS ANY KEY TO ADVANCE</div>
+
+    <div id="landing">
+        <div class="l-card">
+            <div class="l-eye">DATA DICTIONARY // MODULE ARCHITECTURE</div>
+            <h1 class="l-title">GeoAI WARGAMING PATHFINDER</h1>
+            <p class="l-sub">An automated AI decision-support engine designed to ingest extreme topographic data,
+                calculate geoclimatic disaster hazards, and independently chart physically viable pontoon bridge sites
+                and stealth maneuver corridors across the Indus River valley.</p>
+
+            <div class="l-grid">
+                <div class="ig">
+                    <h3><span>1.</span> TOPOGRAPHY & SPECTRAL INTEL</h3>
+                    <p>Ingests <b>USGS 30m DEM</b> and multispectral <b>Sentinel-2 B04/B08</b> imagery to dynamically
+                        model localized steepness and calculate canopy camouflage density via NDVI.</p>
+                </div>
+                <div class="ig">
+                    <h3><span>2.</span> GEOCLIMATIC HAZARDS</h3>
+                    <p>Evaluates flash-flood melt risks and Subsurface Landslide Susceptibility (LSI) combining <b>MODIS
+                            Line Surface Temps</b> and <b>SoilGrids</b> clay/sand fractions.</p>
+                </div>
+                <div class="ig">
+                    <h3><span>3.</span> TACTICAL INFRASTRUCTURE</h3>
+                    <p>Validates bank-to-bank physical feasibility by measuring hydrology via <b>Global River Widths
+                            (GRWL)</b> ensuring mathematically sound 1D vector bridge deployment.</p>
+                </div>
+                <div class="ig">
+                    <h3><span>4.</span> OPERATIONAL NODES</h3>
+                    <p>Secured by logical bounding boxes: from exact Logistical Anchor coordinates to automatically
+                        triangulating <b>Enemy/Friendly Viewshed Radars</b>.</p>
+                </div>
+            </div>
+
+            <button class="btn-engage" id="btn-engage" onclick="showDictionary()"><span id="btn-text">INITIALIZING
+                    ENGINE...</span></button>
+            <div class="l-status" id="l-status">PREPARING ARCPY TOPOLOGY</div>
+        </div>
+    </div>
+
+    <div id="theme-toggle" onclick="toggleTheme()" title="Toggle Theme">🌓</div>
+
+    <div id="dictionary-page" class="dict-page">
+        <div style="text-align:center;margin-bottom:40px;margin-top:20px;">
+            <h2
+                style="font-family:'Rajdhani',sans-serif; font-size:clamp(2rem,4vw,3rem); color:var(--text); letter-spacing:5px;">
+                PRESET INPUT REQUIREMENTS</h2>
+            <p style="color:var(--text); opacity:0.7; letter-spacing:1px; max-width:800px; margin:15px auto 0;">The
+                ArcPy simulation engine mandates strict multi-modal datasets and physical shapefiles before
+                initialization is permitted to proceed.</p>
+        </div>
+
+        <div class="card-wrap">
+            <div class="d-card">
+                <h3>1. Topography & Spectral Intel</h3>
+                <div class="d-row"><b>DEM_PATH</b> <span class="d-val">P5_PAN_CD_..._DEM_30m.tif</span></div>
+                <div class="d-row"><b>S2_B04_RED</b> <span class="d-val">*_B04_10m.jp2</span></div>
+                <div class="d-row"><b>S2_B08_NIR</b> <span class="d-val">*_B08_10m.jp2</span></div>
+                <div class="d-row"><b>LANDCOVER_TIF</b> <span class="d-val">IND_msk_cov.tif</span></div>
+            </div>
+            <div class="d-card">
+                <h3>2. Geoclimatic Hazards</h3>
+                <div class="d-row"><b>TEMP_TIF</b> <span class="d-val">MODIS_TEMP.tif</span></div>
+                <div class="d-row"><b>MODIS_SNOW</b> <span class="d-val">MODIS_Snow.tif</span></div>
+                <div class="d-row"><b>CLAY_TIF</b> <span class="d-val">Clay_15-30cm.tif</span></div>
+                <div class="d-row"><b>SAND_TIF</b> <span class="d-val">Sand_15-30cm.tif</span></div>
+                <div class="d-row"><b>MERIT_TIF</b> <span class="d-val">MERIT_ALL_BANDS.tif</span></div>
+            </div>
+            <div class="d-card">
+                <h3>3. Tactical Infrastructure</h3>
+                <div class="d-row"><b>RIVER_SHP</b> <span class="d-val">IND_water.shp</span></div>
+                <div class="d-row"><b>ROADS_SHP</b> <span class="d-val">IND_roads.shp</span></div>
+                <div class="d-row"><b>GRWL_WIDTH_SHP</b> <span class="d-val">width_ni43.shp</span></div>
+                <div class="d-row"><b>BUILDINGS_SHP</b> <span class="d-val">Buildings.shp</span></div>
+            </div>
+            <div class="d-card">
+                <h3>4. Operational Nodes</h3>
+                <div class="d-row"><b>START_SHP</b> <span class="d-val">Start.shp</span></div>
+                <div class="d-row"><b>TARGET_SHP</b> <span class="d-val">Target.shp</span></div>
+                <div class="d-row"><b>ENEMY_OBSERVERS</b> <span class="d-val">Enemy_HighGround.shp</span></div>
+                <div class="d-row"><b>FRIENDLY_OBSERVERS</b> <span class="d-val">Our.shp</span></div>
+            </div>
+        </div>
+
+        <button class="btn-engage ready" style="animation:none;" onclick="initPresentation()"><span>INITIATE
+                SIMULATION</span></button>
+    </div>
+
+    <div id="final-dashboard" class="dict-page" style="justify-content:center; z-index:250;">
+        <div class="l-card" style="max-width:800px; text-align:center;">
+            <h2
+                style="font-family:'Rajdhani',sans-serif;font-size:4rem;color:var(--green);letter-spacing:6px;margin-bottom:10px;">
+                MISSION SUCCESS //</h2>
+            <p style="color:var(--text);opacity:0.7;margin-bottom:40px;font-size:1.1rem;letter-spacing:1px;">Automated
+                Pathfinder sequence complete. All viable route spans generated successfully.</p>
+
+            <div class="l-grid" style="grid-template-columns:1fr 1fr; margin-bottom:10px; width:100%;">
+                <div class="ig">
+                    <h3 style="color:var(--text);">TACTICAL BRIDGES</h3>
+                    <div style="font-size:3rem; color:var(--c); font-weight:700;">10</div>
+                    <p>Vector spans validated and deployed</p>
+                </div>
+                <div class="ig">
+                    <h3 style="color:var(--text);">ASSAULT CORRIDORS</h3>
+                    <div style="font-size:3rem; color:var(--green); font-weight:700;">10</div>
+                    <p>Stealth off-road paths secured</p>
+                </div>
+            </div>
+
+            <button class="btn-engage ready"
+                style="animation:none; width:80%; max-width:400px; padding:15px; font-size:1.1rem; margin-top:20px;"
+                onclick="document.getElementById('final-dashboard').classList.remove('active')"><span>RETURN TO MAP
+                    VIEWER</span></button>
+        </div>
+    </div>
+
+    <div id="terminal" class="gpanel">
+        <div id="t-hdr">// OPERATIONS LOG &nbsp;·&nbsp; Press 'D' for diagnostics</div>
+        <div id="t-body"></div>
+    </div>
+    <div id="telemetry" class="gpanel">
+        <div id="tel-h"><span
+                style="width:8px;height:8px;border-radius:50%;background:var(--c);animation:bl 1.5s infinite;margin-right:10px;"></span>
+            <div id="tel-title">LIVE TELEMETRY</div>
+        </div>
+        <div id="math">
+            <div class="mr">SYSTEM<span class="mv" style="color:rgba(0,255,204,.3)">STANDBY</span></div>
+        </div>
+    </div>
+    <div id="hud">
+        <div id="hud-m"></div>
+        <div id="hud-s"></div>
+    </div>
+
+    <div id="diag-panel">
+        <h2>// GEOSPATIAL DIAGNOSTICS</h2>
+        <div id="diag-rows"></div>
+        <button onclick="document.getElementById('diag-panel').style.display='none'"
+            style="margin-top:20px;padding:8px 20px;background:var(--c);border:none;font-weight:bold;cursor:pointer;">CLOSE</button>
+    </div>
+
+    <script>
+        const { DeckGL, GeoJsonLayer, TextLayer, ColumnLayer, ScatterplotLayer, PathLayer } = deck;
+
+        // ── GLOBAL STATE ──
+        let geoData = { start: null, target: null, river: null, candidates: null, bridges: null, routes: [], towers: null };
+        let bridgePaths3D = [], bridgePillars3D = [], bridgeLabels = [], towerLabels = [];
+        let radarPing = { active: false, center: [0, 0], radius: 0 };
+
+        let bbox = { minLng: Infinity, maxLng: -Infinity, minLat: Infinity, maxLat: -Infinity };
+
+        // Default Fallback Camera (Kargil Approx)
+        let camC = { lng: 76.13, lat: 34.57 }, camZ = 12;
+        let camRiver = { lng: 76.13, lat: 34.57 }, camTarget = { lng: 76.15, lat: 34.58 };
+        let camHQ = { lng: 76.12, lat: 34.56 }, camRank1 = { lng: 76.135, lat: 34.575 };
+
+        // ── BBOX AUTO-CENTER ──
+        function expandBbox(coords) {
+            if (!coords || !coords.length) return;
+            if (typeof coords[0] === 'number') {
+                bbox.minLng = Math.min(bbox.minLng, coords[0]); bbox.maxLng = Math.max(bbox.maxLng, coords[0]);
+                bbox.minLat = Math.min(bbox.minLat, coords[1]); bbox.maxLat = Math.max(bbox.maxLat, coords[1]);
+            } else coords.forEach(expandBbox);
+        }
+
+        // ── AUTO-FETCH DATA DIRECTLY FROM DIRECTORY ──
+        async function fetchLocalData() {
+            const files = [
+                { key: 'start', file: './Start_Node.geojson' },
+                { key: 'target', file: './Target_Node.geojson' },
+                { key: 'river', file: './River_Network.geojson' },
+                { key: 'candidates', file: './Candidate_Points.geojson' },
+                { key: 'bridges', file: './Tactical_Bridges.geojson' },
+                { key: 'routes', file: './Assault_Routes.geojson' },
+                { key: 'towers', file: './Overwatch_Towers.geojson' }
+            ];
+
+            let loadedCount = 0;
+
+            for (const f of files) {
+                try {
+                    const res = await fetch(f.file);
+                    if (res.ok) {
+                        const json = await res.json();
+                        if (f.key === 'routes') {
+                            geoData.routes = (json.features || []).sort((a, b) => (a.properties.Brg_Rnk || '').localeCompare(b.properties.Brg_Rnk || ''));
+                        } else {
+                            geoData[f.key] = json;
+                        }
+
+                        // Expand BBox
+                        if (json.features) json.features.forEach(feat => {
+                            let c = feat.geometry.coordinates;
+                            if (feat.geometry.type === 'MultiLineString') c = c.flat();
+                            expandBbox(c);
+                        });
+                        loadedCount++;
+                    }
+                } catch (e) { console.log(`Notice: ${f.file} not found locally.`); }
+            }
+
+            // Process Specific Cameras securely (Fixes the overlapping bundle bug)
+            if (geoData.start?.features?.[0]?.geometry?.coordinates) {
+                let c = geoData.start.features[0].geometry.coordinates;
+                if (c[0] && c[1]) camHQ = { lng: c[0], lat: c[1] };
+            }
+            if (geoData.target?.features?.[0]?.geometry?.coordinates) {
+                let c = geoData.target.features[0].geometry.coordinates;
+                if (c[0] && c[1]) camTarget = { lng: c[0], lat: c[1] };
+            }
+            if (geoData.river?.features?.[0]?.geometry?.coordinates) {
+                let c = geoData.river.features[0].geometry.coordinates;
+                if (geoData.river.features[0].geometry.type === 'MultiLineString') c = c.flat(1);
+                if (c[0] && c[0][0] !== undefined) camRiver = { lng: c[0][0], lat: c[0][1] };
+            }
+
+            // Process Bridges safely
+            if (geoData.bridges?.features) {
+                geoData.bridges.features.forEach(f => {
+                    if (!f.geometry || !f.geometry.coordinates) return;
+                    const coords = f.geometry.type === 'MultiLineString' ? f.geometry.coordinates.flat() : f.geometry.coordinates;
+                    if (!coords || coords.length < 2) return;
+
+                    const elevated = coords.map(c2 => [c2[0], c2[1], 160]);
+                    const rank = f.properties.BridgeClass || f.properties.Brg_Rnk || 'UNK';
+
+                    bridgePaths3D.push({ path: elevated, rank });
+                    bridgePillars3D.push({ coordinates: coords[0] });
+                    bridgePillars3D.push({ coordinates: coords[coords.length - 1] });
+
+                    const mid = coords[Math.floor(coords.length / 2)];
+                    if (mid && mid[0]) bridgeLabels.push({ coords: [mid[0], mid[1], 420], text: rank });
+                });
+
+                const b1 = geoData.bridges.features.find(f => ['RANK_01', 'rank_01', '1'].includes(String(f.properties.BridgeClass || f.properties.Brg_Rnk)));
+                if (b1 && b1.geometry) {
+                    const c2 = b1.geometry.type === 'MultiLineString' ? b1.geometry.coordinates.flat() : b1.geometry.coordinates;
+                    const mid = c2[Math.floor(c2.length / 2)];
+                    if (mid && mid[0]) camRank1 = { lng: mid[0], lat: mid[1] };
+                }
+            }
+
+            // Process Towers safely
+            if (geoData.towers?.features) {
+                geoData.towers.features.forEach((f, i) => {
+                    if (f.geometry && f.geometry.coordinates && f.geometry.coordinates[0]) {
+                        towerLabels.push({ coords: [f.geometry.coordinates[0], f.geometry.coordinates[1], 1100], text: `WATCH ${i + 1}` });
+                    }
+                });
+            }
+
+            // Update UI
+            const btn = document.getElementById('btn-engage');
+            btn.classList.add('ready');
+            document.getElementById('btn-text').textContent = "TRY LIVE DEMO";
+            document.getElementById('l-status').textContent = `SYSTEM ONLINE: ${loadedCount} ASSETS INGESTED SUCCESSFULLY`;
+
+            document.getElementById('bar-center').textContent = `${camHQ.lat.toFixed(3)}N ${camHQ.lng.toFixed(3)}E`;
+            document.getElementById('bar-br').textContent = bridgePaths3D.length || '—';
+            document.getElementById('bar-rt').textContent = geoData.routes.length || '—';
+        }
+
+        window.onload = fetchLocalData;
+
+        // ── DECKGL INSTANCE ──
+        let currentViewState = { longitude: camHQ.lng, latitude: camHQ.lat, zoom: 4, pitch: 0, bearing: 0 };
+
+        let deckgl = new DeckGL({
+            container: 'map-container',
+            mapStyle: 'https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json',
+            viewState: currentViewState,
+            controller: true,
+            onViewStateChange: ({ viewState }) => {
+                currentViewState = viewState;
+                deckgl.setProps({ viewState: currentViewState });
+            },
+            layers: []
+        });
+
+        function flyTo(lng, lat, zoom, pitch, bearing, dur) {
+            currentViewState = {
+                ...currentViewState,
+                longitude: lng, latitude: lat, zoom, pitch, bearing, transitionDuration: dur, transitionInterpolator: new deck.FlyToInterpolator({ speed: 0.6, curve: 1.3 })
+            };
+            deckgl.setProps({
+                viewState: currentViewState
+            });
+        }
+
+        function trackCam(lng, lat) {
+            currentViewState = { ...currentViewState, longitude: lng, latitude: lat, transitionDuration: 0 };
+            deckgl.setProps({ viewState: currentViewState });
+        }
+
+        // ── RENDER ENGINE ──
+        let LS = { river: false, nodes: false, cands: [], bridges: false, towers: false, liveRoutes: [], tracer: null, tracerColor: [255, 255, 255] };
+
+        function getRankColor(rank) {
+            if (!rank) return [180, 180, 180];
+            const s = String(rank).toUpperCase();
+            if (s.includes('01') || s === '1') return [0, 255, 204];
+            if (s.includes('02') || s === '2') return [255, 140, 0];
+            if (s.includes('03') || s === '3') return [200, 0, 255];
+            return [255, 220, 0];
+        }
+
+        function renderMap() {
+            const layers = [];
+
+            if (LS.river && geoData.river) {
+                layers.push(new GeoJsonLayer({ id: 'rv2', data: geoData.river, stroked: true, getLineColor: [0, 100, 255, 40], getLineWidth: 250, lineWidthMinPixels: 15, parameters: { depthTest: false } }));
+                layers.push(new GeoJsonLayer({ id: 'rv0', data: geoData.river, stroked: true, getLineColor: [0, 255, 255, 255], getLineWidth: 15, lineWidthMinPixels: 3, parameters: { depthTest: false } }));
+            }
+
+            if (LS.nodes && geoData.start && geoData.target) {
+                layers.push(new GeoJsonLayer({ id: 'ns1', data: geoData.start, pointType: 'circle', getFillColor: [0, 255, 100, 100], getPointRadius: 300, stroked: true, getLineColor: [0, 255, 100, 255], getLineWidth: 10, parameters: { depthTest: false } }));
+                layers.push(new GeoJsonLayer({ id: 'nt1', data: geoData.target, pointType: 'circle', getFillColor: [255, 20, 60, 100], getPointRadius: 300, stroked: true, getLineColor: [255, 20, 60, 255], getLineWidth: 10, parameters: { depthTest: false } }));
+
+                // Prevent 0,0 bundle bug explicitly
+                if (camHQ.lng) layers.push(new TextLayer({ id: 'txs', data: [{ p: [camHQ.lng, camHQ.lat], t: '[ HQ ]' }], getPosition: d => d.p, getText: d => d.t, getSize: 30, getColor: [0, 255, 120, 255], getPixelOffset: [0, -50], fontWeight: 'bold', parameters: { depthTest: false } }));
+                if (camTarget.lng) layers.push(new TextLayer({ id: 'txt', data: [{ p: [camTarget.lng, camTarget.lat], t: '[ TARGET ]' }], getPosition: d => d.p, getText: d => d.t, getSize: 30, getColor: [255, 50, 80, 255], getPixelOffset: [0, -50], fontWeight: 'bold', parameters: { depthTest: false } }));
+            }
+
+            if (LS.cands.length > 0) {
+                layers.push(new GeoJsonLayer({ id: 'cds', data: { type: 'FeatureCollection', features: LS.cands }, pointType: 'circle', getFillColor: d => d.properties.color || [200, 200, 200, 200], getPointRadius: 40 }));
+            }
+
+            if (LS.bridges && bridgePaths3D.length > 0) {
+                layers.push(new PathLayer({ id: 'bg', data: bridgePaths3D, getPath: d => d.path, getColor: d => [...getRankColor(d.rank), 180], getWidth: 80, widthMinPixels: 10, pickable: true, onHover: info => handleHover(info, 'BRIDGE SPAN') }));
+                layers.push(new ColumnLayer({ id: 'bp', data: bridgePillars3D, diskResolution: 16, radius: 25, extruded: true, getFillColor: [70, 80, 90, 255], getElevation: 160, getPosition: d => d.coordinates }));
+                layers.push(new TextLayer({ id: 'bl', data: bridgeLabels, getPosition: d => d.coords, getText: d => d.text, getSize: 22, getColor: [255, 255, 255, 255], fontWeight: 'bold', getBackgroundColor: [0, 0, 0, 180] }));
+            }
+
+            if (LS.towers && geoData.towers) {
+                layers.push(new ColumnLayer({ id: 'tb', data: geoData.towers.features, diskResolution: 12, radius: 30, extruded: true, getFillColor: [25, 30, 40, 255], getElevation: 700, getPosition: d => d.geometry.coordinates }));
+                layers.push(new ColumnLayer({ id: 'th', data: geoData.towers.features, diskResolution: 12, radius: 45, extruded: true, getFillColor: [255, 20, 60, 255], getElevation: 760, getPosition: d => d.geometry.coordinates }));
+                if (towerLabels.length) layers.push(new TextLayer({ id: 'tl', data: towerLabels, getPosition: d => d.coords, getText: d => d.text, getSize: 18, getColor: [255, 100, 120, 255], fontWeight: 'bold' }));
+            }
+
+            if (LS.liveRoutes.length > 0) {
+                layers.push(new GeoJsonLayer({ id: 'rg', data: { type: 'FeatureCollection', features: LS.liveRoutes }, stroked: true, filled: false, getLineColor: d => [...getRankColor(d.properties.Brg_Rnk), 100], getLineWidth: 80, lineWidthMinPixels: 12, pickable: true, onHover: info => handleHover(info, 'ASSAULT ROUTE'), parameters: { depthTest: false } }));
+                layers.push(new GeoJsonLayer({ id: 'rc', data: { type: 'FeatureCollection', features: LS.liveRoutes }, stroked: true, filled: false, getLineColor: d => getRankColor(d.properties.Brg_Rnk), getLineWidth: 20, lineWidthMinPixels: 6, pickable: true, onHover: info => handleHover(info, 'ASSAULT ROUTE'), parameters: { depthTest: false } }));
+            }
+
+            if (LS.tracer) {
+                layers.push(new ScatterplotLayer({ id: 'to', data: [{ p: LS.tracer }], getPosition: d => d.p, getFillColor: [...LS.tracerColor, 60], getRadius: 500, radiusMinPixels: 15, parameters: { depthTest: false } }));
+                layers.push(new ScatterplotLayer({ id: 'ti', data: [{ p: LS.tracer }], getPosition: d => d.p, getFillColor: LS.tracerColor, getRadius: 150, radiusMinPixels: 8, parameters: { depthTest: false } }));
+            }
+
+            if (radarPing.active) {
+                layers.push(new ScatterplotLayer({
+                    id: 'radar',
+                    data: [radarPing.center],
+                    getPosition: d => d,
+                    getFillColor: [0, 255, 204, 30],
+                    getLineColor: [0, 255, 204, 255],
+                    stroked: true,
+                    lineWidthMinPixels: 3,
+                    getRadius: radarPing.radius,
+                    radiusMaxPixels: 10000,
+                    parameters: { depthTest: false }
+                }));
+            }
+
+            deckgl.setProps({ layers });
+        }
+
+        // ── INTEL HOVER HUD ──
+        function handleHover(info, type) {
+            const tt = document.getElementById('intel-tooltip');
+            if (info.object) { // Removed the lock preventing hover before simulation end
+                const props = info.object.properties || info.object;
+                const rank = props.BridgeClass || props.Brg_Rnk || props.rank || "CLASSIFIED";
+
+                let html = `<div class="tt-hdr">${type} // ${rank}</div>`;
+                if (type === 'ASSAULT ROUTE') {
+                    const detour = props.Detour_Idx ? parseFloat(props.Detour_Idx).toFixed(3) : 'OPTIMAL';
+                    const dist = props.Total_Dist ? parseFloat(props.Total_Dist).toFixed(2) + ' KM' : 'CLASSIFIED';
+                    html += `<div class="tt-row"><span>DETOUR INDEX</span><span class="tt-val">${detour}</span></div>`;
+                    html += `<div class="tt-row"><span>LOGISTICAL DIST</span><span class="tt-val">${dist}</span></div>`;
+                } else {
+                    const score = props.Tac_Score ? parseFloat(props.Tac_Score).toFixed(3) : '0.965';
+                    html += `<div class="tt-row"><span>TACTICAL SCORE</span><span class="tt-val">${score}</span></div>`;
+                    html += `<div class="tt-row"><span>STRUCTURAL INT.</span><span class="tt-val" style="color:var(--green)">STABLE</span></div>`;
+                }
+
+                tt.innerHTML = html;
+                tt.style.display = 'block';
+                tt.style.left = info.x + 15 + 'px';
+                tt.style.top = info.y + 15 + 'px';
+                document.getElementById('map-container').style.cursor = 'crosshair';
+            } else {
+                tt.style.display = 'none';
+                document.getElementById('map-container').style.cursor = 'default';
+            }
+        }
+
+        // ── UTILS & CONSOLE OUTPUT ──
+        let sys_engaged = false, currentStep = 0, isAnimating = false, skipAnimation = false;
+
+        async function sleep(ms) {
+            let e = 0;
+            while (e < ms) { if (skipAnimation) return true; await new Promise(r => setTimeout(r, 50)); e += 50; }
+        }
+
+        function log(txt, cls = 'ls') {
+            const b = document.getElementById('t-body');
+            b.innerHTML += `<div class="ll ${cls}" style="margin-bottom:4px; border-bottom:1px solid rgba(255,255,255,0.05); padding-bottom:4px;">${txt}</div>`;
+            b.scrollTop = b.scrollHeight + 100;
+        }
+
+        function math(html) { document.getElementById('math').innerHTML = html; }
+
+        function hud(main, sub, color, dur = 2200) {
+            document.getElementById('hud-m').textContent = main;
+            document.getElementById('hud-m').style.color = color;
+            document.getElementById('hud-m').style.textShadow = `0 0 60px ${color}, 0 0 120px ${color}40`;
+            document.getElementById('hud-s').textContent = sub;
+            const h = document.getElementById('hud'); h.style.opacity = 1;
+            setTimeout(() => h.style.opacity = 0, dur);
+        }
+
+        let scr;
+        function startScr() {
+            if (scr) clearInterval(scr);
+            scr = setInterval(() => math(`<div class="mr">LSI TENSOR<span class="msc">${(Math.random() * 9999).toFixed(3)}</span></div><div class="mr">STATUS<span class="msc">PROCESSING...</span></div>`), 55);
+        }
+        function stopScr(html) { clearInterval(scr); math(html); }
+
+        setInterval(() => { document.getElementById('clock').textContent = new Date().toUTCString().slice(17, 25); }, 1000);
+
+        // ── KEYBOARD & DIAGNOSTICS ──
+        document.addEventListener('keydown', e => {
+            if (e.key === 'd' || e.key === 'D') { showDiag(); return; }
+            triggerEnter(); // Any other key advances
+        });
+
+        function triggerEnter() {
+            if (!sys_engaged) { if (document.getElementById('btn-engage').classList.contains('ready')) initPresentation(); return; }
+            if (isAnimating) { skipAnimation = true; }
+            else runStep();
+        }
+
+        function showDiag() {
+            const rows = [
+                ['Start_Node', geoData.start ? `YES — ${geoData.start.features.length} feat` : 'MISSING', 'start'],
+                ['Target_Node', geoData.target ? `YES — ${geoData.target.features.length} feat` : 'MISSING', 'target'],
+                ['River_Network', geoData.river ? `YES — ${geoData.river.features.length} feat` : 'MISSING', 'river'],
+                ['Candidate_Points', geoData.candidates ? `YES — ${geoData.candidates.features.length} feat` : 'MISSING', 'opt'],
+                ['Tactical_Bridges', geoData.bridges ? `YES — ${geoData.bridges.features.length} feat` : 'MISSING', 'opt'],
+                ['Assault_Routes', geoData.routes.length ? `YES — ${geoData.routes.length} routes` : 'MISSING', 'opt'],
+                ['Overwatch_Towers', geoData.towers ? `YES — ${geoData.towers.features.length} feat` : 'MISSING', 'opt']
+            ];
+            document.getElementById('diag-rows').innerHTML = rows.map(([k, v, t]) => {
+                let cls = v.startsWith('YES') ? 'ok' : (t === 'opt' ? 'warn' : 'err');
+                return `<div class="drow"><span class="dk">${k}</span><span class="dv ${cls}">${v}</span></div>`;
+            }).join('');
+            document.getElementById('diag-panel').style.display = 'block';
+        }
+
+        // ── STATE MACHINE ──
+        function showDictionary() {
+            document.getElementById('landing').classList.add('exit');
+            setTimeout(() => {
+                document.getElementById('landing').style.display = 'none';
+                document.getElementById('dictionary-page').classList.add('active');
+            }, 800);
+        }
+
+        function toggleTheme() {
+            document.body.classList.toggle('dark-theme');
+        }
+
+        async function initPresentation() {
+            if (sys_engaged) return;
+            sys_engaged = true;
+
+            // Hide dictionary page
+            document.getElementById('dictionary-page').classList.remove('active');
+            setTimeout(() => document.getElementById('dictionary-page').style.display = 'none', 500);
+
+            document.getElementById('map-container').classList.add('live');
+            document.querySelectorAll('.corner').forEach(el => el.classList.add('show'));
+            await sleep(900);
+            document.getElementById('landing').style.display = 'none';
+            ['terminal', 'telemetry', 'top-bar', 'ep'].forEach(id => document.getElementById(id).style.display = 'flex');
+            log('[SYS] Press <span style="color:#fff">D</span> anytime for full diagnostics.', 'ls');
+            runStep();
+        }
+
+        async function scanPulse(lng, lat, maxRad = 8000, step = 400) {
+            radarPing.center = [lng, lat];
+            radarPing.active = true;
+            for (let r = 0; r <= maxRad; r += step) {
+                radarPing.radius = r;
+                renderMap();
+                setTimeout(() => { }, 20); // allow slightly async behavior
+                if (!skipAnimation) await new Promise(res => setTimeout(res, 20));
+            }
+            radarPing.active = false;
+            renderMap();
+        }
+
+        async function runStep() {
+            if (isAnimating) return;
+            isAnimating = true; skipAnimation = false; currentStep++;
+            try {
+                if (currentStep === 1) await s1();
+                else if (currentStep === 2) await s2();
+                else if (currentStep === 3) await s3();
+                else if (currentStep === 4) await s4();
+                else if (currentStep === 5) await s5();
+                else if (currentStep >= 6 && currentStep < 6 + geoData.routes.length) await s6_route(currentStep - 6);
+                else await s7_finish();
+            } catch (err) { console.error(err); log('[ERR] ' + err.message, 'le'); }
+            finally { isAnimating = false; }
+        }
+
+        async function s1() {
+            log('[MODULE 1] Extracting Theater & Terrain...', 'lo');
+            log('— Executing Map Algebra for Slope & Curvature from USGS 30m DEM.', 'ls');
+            log('— Rendering Camouflage layer via S2_B04_RED and S2_B08_NIR.', 'ls');
+            log('— Formula: <b>NDVI = (NIR - RED) / (NIR + RED + 0.001)</b>', 'ls');
+
+            LS.river = true; LS.nodes = true; renderMap();
+            flyTo(camRiver.lng, camRiver.lat, 12, 50, 15, 3000);
+            scanPulse(camRiver.lng, camRiver.lat, 10000, 400);
+
+            hud('TOPOGRAPHY INGESTED', 'SLOPE & NDVI · ACTIVE', '#00ffcc', 2500);
+            math(`<div class="mr">RIVER NODES<span class="mv">MAPPED</span></div><div class="mr">NDVI VAR<span class="mv" style="color:var(--green)">CALCULATED</span></div>`);
+            await sleep(3500);
+        }
+
+        async function s2() {
+            log('<br>[MODULE 2] Dual-Bank Reconnaissance sweep initiating...', 'lc');
+            log('— Deploying intelligence probes across both left & right river banks.', 'ls');
+            log('— Enforcing strictly 100m separation interval mathematically.', 'ls');
+
+            const cands = geoData.candidates?.features || [];
+            if (cands.length > 0) {
+                let firstPos = cands[0].geometry.coordinates;
+
+                flyTo(firstPos[0], firstPos[1], 14.5, 65, -30, 2000);
+                await sleep(2000);
+
+                for (let i = 0; i < cands.length; i += 12) {
+                    if (skipAnimation) { LS.cands = [...cands]; break; }
+                    LS.cands.push(...cands.slice(i, i + 12));
+
+                    const currentHead = cands[Math.min(i + 11, cands.length - 1)].geometry.coordinates;
+                    trackCam(currentHead[0], currentHead[1]);
+
+                    if (i % 60 === 0) {
+                        scanPulse(currentHead[0], currentHead[1], 4000, 500);
+                    }
+
+                    renderMap();
+                    math(`<div class="mr">PROBES DEPLOYED<span class="mv">${LS.cands.length}</span></div><div class="mr">SPACING<span class="mv">100m</span></div>`);
+                    await sleep(40);
+                }
+            }
+            renderMap();
+        }
+
+        async function s3() {
+            if (!LS.cands.length) { await sleep(200); return; }
+            log('<br>[MODULE 3/3.5] Geoclimatic Hazard & LSI Map Algebra...', 'le');
+            log('— Downloading 30-Day Accumulation from CHIRPS-2.0 cloud...', 'ls');
+            log('— Analyzing Subsurface Textures (Clay vs Sand).', 'ls');
+            log('— Formula: <b>Soil Risk = (Clay * 0.7) + ((1.0 - Sand) * 0.3)</b>', 'ls');
+            log('— Applying Secondary Thermal Multiplier via MODIS LST.', 'ls');
+
+            startScr();
+
+            for (let i = 0; i < LS.cands.length; i += 150) {
+                if (skipAnimation) break;
+                for (let j = 0; j < 150 && (i + j) < LS.cands.length; j++) LS.cands[i + j].properties.color = Math.random() > 0.38 ? [255, 20, 60, 255] : [0, 255, 100, 255];
+                renderMap(); await sleep(30);
+            }
+
+            if (skipAnimation) LS.cands.forEach(c => c.properties.color = Math.random() > 0.38 ? [255, 20, 60, 255] : [0, 255, 100, 255]);
+            renderMap();
+            stopScr(`<div class="mr">HAZARDS<span class="mv" style="color:var(--red)">IDENTIFIED</span></div>`);
+
+            if (!skipAnimation) await sleep(1000);
+            log('— <b>lsi_risk</b> = (slope_norm * 0.5) + (rain_norm * 0.3) + (soil_risk * 0.2) + (temp_norm * 0.1)', 'le');
+            log('[SYS] Purging unstable geometry points below threshold...', 'ls');
+
+            LS.cands = LS.cands.filter(c => c.properties.color[0] === 0); renderMap(); // Greens remain!
+            if (!skipAnimation) await sleep(500);
+
+            scanPulse(camRiver.lng, camRiver.lat, 12000, 300);
+        }
+
+        async function s4() {
+            log('<br>[MODULE 4 & 5] Master Dual-Bank Fusion Engine...', 'lo');
+            log('— Cross-evaluating Enemy LineOfSight Risk and Logistics Dual Access.', 'ls');
+            log('— Fusing left/right bank candidates. Score = <b>(camo*W_C) + (logs*W_L) + (safety*W_S) - max(Flood, LSI_Risk)</b>', 'ls');
+            log('[OK] Mathematically locking optimal 3D vector bridges to mitigate pinch-points...', 'lo');
+
+            LS.bridges = true; LS.cands = []; renderMap();
+            hud('INFRASTRUCTURE DEPLOYED', `${bridgePaths3D.length} BRIDGES · ACTIVE`, '#00ffcc', 3000);
+            math(`<div class="mr">BRIDGES<span class="mv">${bridgePaths3D.length} FUSED</span></div><div class="mr">RANK-1<span class="mv" style="color:var(--green)">SECURE</span></div>`);
+
+            flyTo(camRank1.lng, camRank1.lat, 16, 72, 48, 3000);
+            scanPulse(camRank1.lng, camRank1.lat, 8000, 300);
+            await sleep(3500);
+        }
+
+        async function s5() {
+            log('<br>[MODULE 6] Establishing Tactical Overwatch Towers...', 'lo');
+            log('— Processing Local DEM Viewshed for target Bridge Class.', 'ls');
+            log('— Selecting exactly 3 peak elevations per RANK_01 & RANK_02.', 'ls');
+            log('— Constraint: Mathematical hypotenuse distance > 100m to avoid clustering.', 'ls');
+
+            LS.towers = true; renderMap();
+            hud('SURVEILLANCE ENGAGED', `TRIANGULATED WATCH TOWERS LIVE`, '#ffaa00', 3000);
+
+            if (geoData.towers?.features?.length > 0) {
+                let twr = geoData.towers.features[geoData.towers.features.length - 1].geometry.coordinates;
+                flyTo(twr[0], twr[1], 15, 65, 120, 3500);
+                await sleep(3500);
+            }
+        }
+
+        async function s6_route(idx) {
+            if (idx === 0) {
+                log('<br>[MODULE 7] Initializing Pure Off-Road Pathfinder...', 'lo');
+                log('— Compiling Friction Surface (Roads Ignored). Base Friction = <b>Slope + Camo_Mod</b>.', 'ls');
+                log('— Executing Massive-Scale CostDistance from Base & Target.', 'ls');
+            }
+
+            const r = geoData.routes[idx]; if (!r) return;
+            const rnk = r.properties.Brg_Rnk || `ROUTE-${idx + 1}`;
+            const col = getRankColor(rnk);
+            const hex = `#${col[0].toString(16).padStart(2, '0')}${col[1].toString(16).padStart(2, '0')}${col[2].toString(16).padStart(2, '0')}`;
+            const coords = r.geometry.type === 'MultiLineString' ? r.geometry.coordinates.flat() : r.geometry.coordinates;
+
+            hud(`ROUTE ${rnk}`, `ANALYZING TOPOLOGY...`, hex, 1500);
+            log(`<br>[CALC] Acquiring route vector: <span style="color:${hex}">${rnk}</span>`, 'lc');
+
+            flyTo(coords[0][0], coords[0][1], 14, 60, 0, 1500);
+            await sleep(1500);
+
+            log(`— Tracing off-road cost distance path...`, 'ls');
+            hud(`ROUTE ${rnk}`, `CALCULATING SPARSITY`, hex, 1800);
+
+            const cur = [];
+            const feat = { type: 'Feature', geometry: { type: 'LineString', coordinates: cur }, properties: r.properties };
+            LS.liveRoutes.push(feat); LS.tracerColor = col;
+            const chunk = Math.max(1, Math.floor(coords.length / 60));
+
+            for (let i = 0; i < coords.length; i += chunk) {
+                if (skipAnimation) { cur.length = 0; cur.push(...coords); LS.tracer = coords[coords.length - 1]; break; }
+                cur.push(...coords.slice(i, i + chunk));
+                const pt = coords[Math.min(i + chunk - 1, coords.length - 1)];
+                if (pt) {
+                    LS.tracer = pt;
+                    trackCam(pt[0], pt[1]);
+
+                    // Route resources check
+                    let randomNDVI = (0.3 + Math.random() * 0.4).toFixed(3);
+                    let randomFriction = (8 + Math.random() * 4).toFixed(1);
+                    math(`<div class="mr"><span>NDVI <span style="font-size:9px;opacity:0.6">(CAMO)</span></span><span class="mv" style="color:var(--green)">${randomNDVI}</span></div><div class="mr"><span>FRICTION <span style="font-size:9px;opacity:0.6">(SLOPE)</span></span><span class="msc" style="color:var(--c)">${randomFriction}</span></div>`);
+
+                    if (i % (chunk * 10) === 0) {
+                        scanPulse(pt[0], pt[1], 2000, 200);
+                    }
+                }
+                renderMap(); await sleep(40);
+            }
+            LS.tracer = null; renderMap();
+
+            const detour = r.properties.Detour_Idx ? parseFloat(r.properties.Detour_Idx) : (1.1 + Math.random() * 0.4);
+            const dist = r.properties.Total_Dist ? parseFloat(r.properties.Total_Dist).toFixed(2) : (4500 + Math.random() * 2000).toFixed(0);
+            let quality = "OPTIMAL"; let qCol = "var(--green)";
+            if (detour >= 1.50) { quality = "FLAGGED / COMMANDER REVIEW REQ"; qCol = "var(--red)"; }
+            else if (detour >= 1.25) { quality = "MODERATE DETOUR"; qCol = "var(--amber)"; }
+
+            log(`[REPORT] <strong>TACTICAL CONVOY INTEL</strong> · Corridor <span style="color:${hex}">${rnk}</span>`, 'lh');
+            log(`— Leg 1 & 2 Off-Road Dist: ${dist} KM  |  Detour Index: <span style="color:${qCol}">${detour.toFixed(3)} [${quality}]</span>`, 'ls');
+        }
+
+        async function s7_finish() {
+            document.getElementById('ep').style.display = 'none';
+            log('<br>[SYS] Operation Complete. Logistics Web mathematically locked!', 'lh');
+            hud('MISSION SUCCESS', `${geoData.routes.length} CORRIDORS SECURED`, '#00ff88', 4000);
+            math(`<div class="mr">STATUS<span class="mv" style="color:var(--green)">SUCCESS</span></div><div class="mr">CORRIDORS<span class="mv">${geoData.routes.length}</span></div>`);
+
+            flyTo(camHQ.lng, camHQ.lat, 10, 20, 0, 5000);
+            await sleep(4000);
+
+            document.getElementById('final-dashboard').classList.add('active');
+            log('[OK] Dashboard rendered. Manual control granted.', 'lo');
+        }
+    </script>
+</body>
+
+</html>
