@@ -333,11 +333,12 @@
         }
 
         #terminal {
-            bottom: 22px;
-            left: 18px;
+            top: 78px;
+            right: 18px;
             width: 490px;
             height: 300px;
-            border-left: 3px solid var(--c);
+            border: 2px solid var(--c);
+            box-shadow: 0 0 15px rgba(255,107,0,0.5), inset 0 0 10px rgba(255,107,0,0.2);
             display: none;
             background: var(--tbg);
             color: #fff;
@@ -346,6 +347,12 @@
             pointer-events: auto;
             display: flex;
             flex-direction: column;
+            animation: console_pulse 2s infinite alternate;
+        }
+
+        @keyframes console_pulse {
+            from { box-shadow: 0 0 15px rgba(255,107,0,0.5), inset 0 0 10px rgba(255,107,0,0.2); border-color: var(--c); }
+            to { box-shadow: 0 0 25px rgba(255,30,80,0.8), inset 0 0 20px rgba(255,30,80,0.5); border-color: var(--red); }
         }
 
         #t-hdr {
@@ -368,10 +375,10 @@
         }
 
         #telemetry {
-            top: 78px;
-            right: 18px;
+            bottom: 22px;
+            left: 18px;
             width: 320px;
-            border-right: 3px solid var(--c);
+            border-left: 3px solid var(--c);
             display: none;
         }
 
@@ -496,23 +503,23 @@
 
         #ep {
             position: fixed;
-            bottom: 22px;
-            left: 50%;
-            transform: translateX(-50%);
+            top: 78px;
+            left: 18px;
             z-index: 91;
             font-family: 'Rajdhani', sans-serif;
-            font-size: 12px;
+            font-size: 13px;
             font-weight: 700;
-            letter-spacing: 6px;
+            letter-spacing: 4px;
             color: var(--text);
             background: var(--panel);
-            padding: 12px 30px;
+            padding: 12px 25px;
             border: 1px solid var(--c);
             display: none;
             animation: bl 2s ease infinite;
             cursor: pointer;
-            border-radius: 24px;
+            border-radius: 4px;
             box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+            text-transform: uppercase;
         }
 
         #ep::before,
@@ -781,7 +788,7 @@
                 class="v" id="clock">--:--:--</span></div>
     </div>
 
-    <div id="ep" onclick="triggerEnter()">PRESS ANY KEY TO ADVANCE</div>
+    <div id="ep" onclick="triggerEnter()">PRESS / TOUCH TO START</div>
 
     <div id="landing">
         <div class="l-card">
@@ -1088,27 +1095,53 @@
         function getRankColor(rank) {
             if (!rank) return [180, 180, 180];
             const s = String(rank).toUpperCase();
-            if (s.includes('01') || s === '1') return [0, 255, 204];
-            if (s.includes('02') || s === '2') return [255, 140, 0];
-            if (s.includes('03') || s === '3') return [200, 0, 255];
-            return [255, 220, 0];
+            let hash = 0;
+            for(let i=0; i<s.length; i++) hash = s.charCodeAt(i) + ((hash << 5) - hash);
+            hash = Math.abs(hash);
+
+            const colors = [
+                [0, 255, 204],   // Cyan
+                [255, 140, 0],   // Orange
+                [200, 0, 255],   // Purple
+                [255, 20, 60],   // Crimson
+                [0, 255, 100],   // Lime
+                [255, 220, 0],   // Gold
+                [0, 150, 255],   // Blue
+                [255, 0, 255],   // Magenta
+                [100, 255, 255], // Ice
+                [150, 255, 0],   // Chartreuse
+                [255, 100, 100], // Light Red
+                [100, 100, 255]  // Indigo
+            ];
+            return colors[hash % colors.length];
         }
 
         function renderMap() {
             const layers = [];
 
             if (LS.river && geoData.river) {
-                layers.push(new GeoJsonLayer({ id: 'rv2', data: geoData.river, stroked: true, getLineColor: [0, 100, 255, 40], getLineWidth: 250, lineWidthMinPixels: 15, parameters: { depthTest: false } }));
-                layers.push(new GeoJsonLayer({ id: 'rv0', data: geoData.river, stroked: true, getLineColor: [0, 255, 255, 255], getLineWidth: 15, lineWidthMinPixels: 3, parameters: { depthTest: false } }));
+                layers.push(new GeoJsonLayer({ id: 'rv2', data: geoData.river, stroked: true, getLineColor: [0, 100, 255, 100], getLineWidth: 600, lineWidthMinPixels: 25, parameters: { depthTest: false } }));
+                layers.push(new GeoJsonLayer({ id: 'rv0', data: geoData.river, stroked: true, getLineColor: [0, 200, 255, 255], getLineWidth: 40, lineWidthMinPixels: 8, parameters: { depthTest: false } }));
+                if (geoData.river.features.length) {
+                    let firstRivFeat = geoData.river.features[0].geometry.coordinates;
+                    if (geoData.river.features[0].geometry.type === 'MultiLineString') firstRivFeat = firstRivFeat.flat(1);
+                    if (firstRivFeat && firstRivFeat[0]) {
+                        layers.push(new TextLayer({ id: 'riv-txt', data: [{ p: firstRivFeat[0], t: 'INDUS RIVER >>' }], getPosition: d => d.p, getText: d => d.t, getSize: 26, getColor: [0, 255, 255, 255], getPixelOffset: [100, -30], fontWeight: 'bold', parameters: { depthTest: false } }));
+                    }
+                }
             }
 
             if (LS.nodes && geoData.start && geoData.target) {
                 layers.push(new GeoJsonLayer({ id: 'ns1', data: geoData.start, pointType: 'circle', getFillColor: [0, 255, 100, 100], getPointRadius: 300, stroked: true, getLineColor: [0, 255, 100, 255], getLineWidth: 10, parameters: { depthTest: false } }));
                 layers.push(new GeoJsonLayer({ id: 'nt1', data: geoData.target, pointType: 'circle', getFillColor: [255, 20, 60, 100], getPointRadius: 300, stroked: true, getLineColor: [255, 20, 60, 255], getLineWidth: 10, parameters: { depthTest: false } }));
+                
+                // 3D structures for HQ and Target
+                layers.push(new ColumnLayer({ id: 'ns-col', data: geoData.start.features, diskResolution: 4, radius: 250, extruded: true, getElevation: 800, getFillColor: [0, 255, 100, 255], getPosition: d => d.geometry.coordinates }));
+                layers.push(new ColumnLayer({ id: 'nt-col', data: geoData.target.features, diskResolution: 8, radius: 250, extruded: true, getElevation: 800, getFillColor: [255, 20, 60, 255], getPosition: d => d.geometry.coordinates }));
 
                 // Prevent 0,0 bundle bug explicitly
-                if (camHQ.lng) layers.push(new TextLayer({ id: 'txs', data: [{ p: [camHQ.lng, camHQ.lat], t: '[ HQ ]' }], getPosition: d => d.p, getText: d => d.t, getSize: 30, getColor: [0, 255, 120, 255], getPixelOffset: [0, -50], fontWeight: 'bold', parameters: { depthTest: false } }));
-                if (camTarget.lng) layers.push(new TextLayer({ id: 'txt', data: [{ p: [camTarget.lng, camTarget.lat], t: '[ TARGET ]' }], getPosition: d => d.p, getText: d => d.t, getSize: 30, getColor: [255, 50, 80, 255], getPixelOffset: [0, -50], fontWeight: 'bold', parameters: { depthTest: false } }));
+                if (camHQ.lng) layers.push(new TextLayer({ id: 'txs', data: [{ p: [camHQ.lng, camHQ.lat, 950], t: '[ HQ ]' }], getPosition: d => d.p, getText: d => d.t, getSize: 34, getColor: [0, 255, 120, 255], getPixelOffset: [0, -30], fontWeight: 'bold' }));
+                if (camTarget.lng) layers.push(new TextLayer({ id: 'txt', data: [{ p: [camTarget.lng, camTarget.lat, 950], t: '[ TARGET ]' }], getPosition: d => d.p, getText: d => d.t, getSize: 34, getColor: [255, 50, 80, 255], getPixelOffset: [0, -30], fontWeight: 'bold' }));
             }
 
             if (LS.cands.length > 0) {
@@ -1133,8 +1166,18 @@
             }
 
             if (LS.tracer) {
-                layers.push(new ScatterplotLayer({ id: 'to', data: [{ p: LS.tracer }], getPosition: d => d.p, getFillColor: [...LS.tracerColor, 60], getRadius: 500, radiusMinPixels: 15, parameters: { depthTest: false } }));
-                layers.push(new ScatterplotLayer({ id: 'ti', data: [{ p: LS.tracer }], getPosition: d => d.p, getFillColor: LS.tracerColor, getRadius: 150, radiusMinPixels: 8, parameters: { depthTest: false } }));
+                layers.push(new ScatterplotLayer({ id: 'to', data: [{ p: LS.tracer }], getPosition: d => d.p, getFillColor: [...LS.tracerColor, 70], getRadius: 600, radiusMinPixels: 12, parameters: { depthTest: false } }));
+                layers.push(new ScatterplotLayer({ id: 'ti', data: [{ p: LS.tracer }], getPosition: d => d.p, getFillColor: [255, 255, 255, 255], getRadius: 150, radiusMinPixels: 4, parameters: { depthTest: false } }));
+                
+                layers.push(new TextLayer({
+                    id: 'tracer-lbl',
+                    data: [{ p: LS.tracer, t: `NDVI: ${LS.tracerNDVI || '...'}\nFRIC: ${LS.tracerFric || '...'}` }],
+                    getPosition: d => d.p, getText: d => d.t, getSize: 16, getColor: [255, 255, 255, 255],
+                    getPixelOffset: [0, -65], fontWeight: 'bold', lineHeight: 1.5,
+                    background: true, getBackgroundColor: [5, 10, 15, 240], getBorderColor: [...LS.tracerColor, 255], getBorderWidth: 2,
+                    backgroundPadding: [16, 12, 16, 12], cornerRadius: 5,
+                    parameters: { depthTest: false }
+                }));
             }
 
             if (radarPing.active) {
@@ -1193,10 +1236,47 @@
             while (e < ms) { if (skipAnimation) return true; await new Promise(r => setTimeout(r, 50)); e += 50; }
         }
 
+        let logQueue = [];
+        let isLogging = false;
+
+        async function processLogQueue() {
+            if(isLogging) return;
+            isLogging = true;
+            while(logQueue.length > 0) {
+                const {txt, cls} = logQueue.shift();
+                const b = document.getElementById('t-body');
+                const id = 'log_' + Math.random().toString(36).substr(2,9);
+                const div = document.createElement('div');
+                div.id = id;
+                div.className = `ll ${cls}`;
+                div.style.cssText = "margin-bottom:4px; border-bottom:1px solid rgba(255,255,255,0.05); padding-bottom:4px;";
+                b.appendChild(div);
+                
+                let i = 0;
+                let currentHTML = "";
+                let inTag = false;
+                while(i < txt.length) {
+                    if (skipAnimation) { div.innerHTML = txt; break; }
+                    let char = txt[i];
+                    if (char === '<') inTag = true;
+                    currentHTML += char;
+                    if (char === '>') inTag = false;
+                    if (!inTag) {
+                        div.innerHTML = currentHTML + "█";
+                        b.scrollTop = b.scrollHeight + 100;
+                        await new Promise(r => setTimeout(r, 8)); // smooth fast typography
+                    }
+                    i++;
+                }
+                div.innerHTML = txt;
+                b.scrollTop = b.scrollHeight + 100;
+            }
+            isLogging = false;
+        }
+
         function log(txt, cls = 'ls') {
-            const b = document.getElementById('t-body');
-            b.innerHTML += `<div class="ll ${cls}" style="margin-bottom:4px; border-bottom:1px solid rgba(255,255,255,0.05); padding-bottom:4px;">${txt}</div>`;
-            b.scrollTop = b.scrollHeight + 100;
+            logQueue.push({txt, cls});
+            processLogQueue();
         }
 
         function math(html) { document.getElementById('math').innerHTML = html; }
@@ -1417,6 +1497,7 @@
             if (idx === 0) {
                 log('<br>[MODULE 7] Initializing Pure Off-Road Pathfinder...', 'lo');
                 log('— Compiling Friction Surface (Roads Ignored). Base Friction = <b>Slope + Camo_Mod</b>.', 'ls');
+                log('— <b>FRIC</b> (Friction Value): Higher number = denser terrain, slower movement speed.', 'ls');
                 log('— Executing Massive-Scale CostDistance from Base & Target.', 'ls');
             }
 
@@ -1462,7 +1543,7 @@
             const cur = [];
             const feat = { type: 'Feature', geometry: { type: 'LineString', coordinates: cur }, properties: r.properties };
             LS.liveRoutes.push(feat); LS.tracerColor = col;
-            const chunk = Math.max(1, Math.floor(coords.length / 60));
+            const chunk = Math.max(1, Math.floor(coords.length / 180));
 
             for (let i = 0; i < coords.length; i += chunk) {
                 if (skipAnimation) { cur.length = 0; cur.push(...coords); LS.tracer = coords[coords.length - 1]; break; }
@@ -1473,15 +1554,14 @@
                     trackCam(pt[0], pt[1]);
 
                     // Route resources check
-                    let randomNDVI = (0.3 + Math.random() * 0.4).toFixed(3);
-                    let randomFriction = (8 + Math.random() * 4).toFixed(1);
-                    math(`<div class="mr"><span>NDVI <span style="font-size:9px;opacity:0.6">(CAMO)</span></span><span class="mv" style="color:var(--green)">${randomNDVI}</span></div><div class="mr"><span>FRICTION <span style="font-size:9px;opacity:0.6">(SLOPE)</span></span><span class="msc" style="color:var(--c)">${randomFriction}</span></div>`);
+                    LS.tracerNDVI = (0.3 + Math.random() * 0.4).toFixed(3);
+                    LS.tracerFric = (8 + Math.random() * 4).toFixed(1);
 
-                    if (i % (chunk * 10) === 0) {
+                    if (i % (chunk * 15) === 0) {
                         scanPulse(pt[0], pt[1], 2000, 200);
                     }
                 }
-                renderMap(); await sleep(40);
+                renderMap(); await sleep(30);
             }
             LS.tracer = null; renderMap();
 
