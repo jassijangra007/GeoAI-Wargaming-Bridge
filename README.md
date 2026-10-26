@@ -1,7 +1,7 @@
 # Geospatial Decision-Support Architecture: Tactical Bridge Deployment & Off-Road Pathfinder
 ---
 **📌 Simulation:**
- https://jassijangra007.github.io/GeoAI-Wargaming-Bridge/
+ "https://jassijangra007.github.io/GeoAI-Wargaming-Bridge"
 ---
 ![Python](https://img.shields.io/badge/Python-3.x-blue.svg)
 ![ArcPy](https://img.shields.io/badge/ArcPy-Geospatial-green.svg)
